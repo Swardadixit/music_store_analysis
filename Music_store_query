@@ -1,0 +1,234 @@
+use music_database;
+create table album (
+    album_id character varying(50) NOT NULL,
+    title character varying(120),
+    artist_id character varying(30)
+);
+select*from album;
+CREATE TABLE artist (
+    artist_id character varying(50) NOT NULL,
+    name character varying(120)
+);
+SELECT* FROM artist;
+CREATE TABLE customer (
+    customer_id integer NOT NULL,
+    first_name character(50),
+    last_name character(50),
+    company character varying(120),
+    address character varying(120),
+    city character varying(50),
+    state character varying(50),
+    country character varying(50),
+    postal_code character varying(50),
+    phone character varying(50),
+    fax character varying(50),
+    email character varying(50),
+    support_rep_id integer
+);
+SELECT*FROM CUSTOMER;
+ CREATE TABLE employee (
+    employee_id character varying(50) NOT NULL,
+    last_name character(50),
+    first_name character(50),
+    title character varying(50),
+    reports_to character varying(30),
+    levels character varying(10),
+    birthdate DATE,
+    hire_date DATE,
+    address character varying(120),
+    city character varying(50),
+    state character varying(50),
+    country character varying(30),
+    postal_code character varying(30),
+    phone character varying(30),
+    fax character varying(30),
+    email character varying(30)
+);
+SELECT*FROM employee;
+CREATE TABLE genre (
+    genre_id character varying(50) NOT NULL,
+    name character varying(120)
+);
+select*from genre;
+CREATE TABLE invoice (
+    invoice_id integer NOT NULL,
+    customer_id integer,
+    invoice_date DATE,
+    billing_address character varying(120),
+    billing_city character varying(30),
+    billing_state character varying(30),
+    billing_country character varying(30),
+    billing_postal character varying(30),
+    total double precision
+);
+select*from invoice;
+CREATE TABLE invoice_line (
+    invoice_line_id character varying(50) NOT NULL,
+    invoice_id integer,
+    track_id integer,
+    unit_price double precision,
+    quantity double precision
+);
+select*from invoice_line;
+CREATE TABLE media_type (
+    media_type_id character varying(50) NOT NULL,
+    name character varying(120)
+);
+select*from media_type;
+ CREATE TABLE playlist (
+    playlist_id character varying(50) NOT NULL,
+    name character varying(120)
+);
+select *from playlist;
+CREATE TABLE playlist_track (
+    playlist_id character varying(50),
+    track_id integer
+);
+select *from playlist_track;
+CREATE TABLE track (
+    track_id integer NOT NULL,
+    name character varying(150),
+    album_id character varying(50),
+    media_type_id character varying(50),
+    genre_id character varying(50),
+    composer character varying(190),
+    milliseconds integer,
+    bytes integer,
+    unit_price double precision
+);
+select *from track;
+load data local infile 
+"C:/Users/Admin/Downloads/track2.csv"
+into table track
+fields terminated by','
+enclosed by '"'
+lines terminated by '\n'
+ignore 1 rows;
+
+SHOW GLOBAL VARIABLES LIKE 'local_infile';
+SET GLOBAL local_infile = true;
+
+select *from employee;
+
+-- easy level ---
+
+/* Q1: Who is the senior most employee based on job title? */
+select *from employee
+order by levels desc
+limit 1;
+
+select *from customer;
+select*from invoice;
+
+/* Q2: Which countries have the most Invoices? */
+select count(invoice_id),billing_country from invoice
+group by billing_country
+order by 1 desc;
+
+/* Q3: What are top 3 values of total invoice? */
+select total from invoice 
+order by total desc
+limit 3;
+
+/* Q4: Which city has the best customers? We would like to throw a promotional Music Festival in the city we made the most money. 
+Write a query that returns one city that has the highest sum of invoice totals. 
+Return both the city name & sum of all invoice totals */
+select sum(total) as invoice_total ,billing_city from invoice
+group by 2
+order by 1 desc
+limit 1;
+
+/* Q5: Who is the best customer? The customer who has spent the most money will be declared the best customer. 
+Write a query that returns the person who has spent the most money.*/
+select c.customer_id,first_name,last_name,sum(total) as total_invoice
+from invoice as i
+left join customer as c on c.customer_id = i.customer_id
+group by c.customer_id,first_name,last_name
+order by total_invoice desc
+limit 1;
+
+select*from genre;
+
+-- moderate level ---
+
+/* Q1: Write query to return the email, first name, last name, & Genre of all Rock Music listeners. 
+Return your list ordered alphabetically by email starting with A. */
+select distinct email, first_name, last_name
+from customer c
+left join invoice i on i.customer_id = c.customer_id
+left join invoice_line il on il.invoice_id = i.invoice_id
+where track_id in ( 
+select track_id
+from track t left join genre g on t.genre_id = g.genre_id 
+where g.name = "Rock")
+order by email;
+
+/* Q2: Let's invite the artists who have written the most rock music in our dataset. 
+Write a query that returns the Artist name and total track count of the top 10 rock bands. */
+SELECT artist.artist_id, artist.name,COUNT(artist.artist_id) AS number_of_songs
+FROM track
+JOIN album ON album.album_id = track.album_id
+JOIN artist ON artist.artist_id = album.artist_id
+JOIN genre ON genre.genre_id = track.genre_id
+WHERE genre.name LIKE 'Rock'
+GROUP BY artist.artist_id,artist.name
+ORDER BY number_of_songs DESC
+LIMIT 10;
+
+/* Q3: Return all the track names that have a song length longer than the average song length. 
+Return the Name and Milliseconds for each track. Order by the song length with the longest songs listed first. */
+select name, milliseconds from track 
+where milliseconds >(select avg(milliseconds) as averge_lenght from track)
+order by milliseconds desc;
+
+-- advance level---
+
+/* Q1: Find how much amount spent by each customer on artists? Write a query to return customer name, artist name and total spent */
+with best_selling_artist as (
+select a.artist_id as artist_id, a.name as artrist_name,
+sum(inl.unit_price*inl.quantity) AS total_sale from invoice_line as inl
+join track as t on t.track_id = inl.track_id
+join album as al on al.album_id = t.album_id
+join artist as a on a.artist_id = al.artist_id
+group by 1,2
+order by 3 desc
+limit 1)
+select c.customer_id, c.first_name, c.last_name,bsa.artrist_name,
+sum(inl.unit_price*inl.quantity)as amount_spent
+from invoice as i 
+join customer c on c.customer_id = i.customer_id
+join invoice_line inl on inl.invoice_id = i.invoice_id
+join track t on t.track_id = inl.track_id
+join album al on al.album_id = t.album_id
+join best_selling_artist bsa on bsa.artist_id = al.artist_id
+group by 1,2,3,4
+order by 5 desc;
+
+/* Q2: We want to find out the most popular music Genre for each country. We determine the most popular genre as the genre 
+with the highest amount of purchases. Write a query that returns each country along with the top Genre. For countries where 
+the maximum number of purchases is shared return all Genres. */
+with popular_genre as
+(select count(il.quantity) as purchases, c.country, g.name, g.genre_id,
+row_number() over(partition by c.country order by count(il.quantity)desc) as count_quantity
+from invoice_line il
+join invoice i on i.invoice_id = il.invoice_id
+join customer c on c.customer_id = i.customer_id
+join track t on t.track_id = il.track_id
+join genre g on g.genre_id = t.track_id
+group by 2,3,4
+order by 2 asc, 1 desc)
+select * from popular_genre where count_quantity = 1;
+
+select *from customer;
+select*from invoice;
+/* Q3: Write a query that determines the customer that has spent the most on music for each country. 
+Write a query that returns the country along with the top customer and how much they spent. 
+For countries where the top amount spent is shared, provide all customers who spent this amount. */
+with customer_with_country as
+(select c.customer_id,first_name,last_name,billing_country,
+sum(total) as total_spent,
+row_number()over(partition by billing_country order by sum(total) desc)as row_no
+from invoice i join customer c on c.customer_id = i.customer_id
+group by 1,2,3,4
+order by 4 asc,5 desc)
+select * from customer_with_country where row_no = 1;
